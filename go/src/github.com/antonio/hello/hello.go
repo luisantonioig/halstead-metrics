@@ -38,13 +38,14 @@ function b() {
     check(err2)
     //fmt.Print(string(dat1))
     
-        highlighted, err4 := syntaxhighlight.AsHTML(dat1)
+        _, err4 := syntaxhighlight.AsHTML(dat1)
         if err4 != nil {
             fmt.Println(err4)
             os.Exit(1)
         }
 
-        fmt.Println(string(highlighted))
+        //fmt.Println(string(highlighted))
+        fmt.Println("Hola")
 
     
 /*
