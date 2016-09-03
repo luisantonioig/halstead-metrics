@@ -21,6 +21,9 @@ var totalOperators = 0
 var totalOperands = 0
 var comments = 0
 
+var operators map[string]int
+var operands map[string]int
+
 const (
 	Whitespace Kind = iota
 	String
@@ -70,10 +73,12 @@ func (c HTMLConfig) Class(kind Kind,tokText string) string {
     }
 	switch kind {
 	case String:
+		operands[tokText]++
 		totalOperands = totalOperands + 1
 		fmt.Println("Cadena")
 		return c.String
 	case Keyword:
+		operators[tokText]++
 		totalOperators = totalOperators + 1
 		fmt.Println("Palabra reservada")
 		return c.Keyword
@@ -82,18 +87,22 @@ func (c HTMLConfig) Class(kind Kind,tokText string) string {
 		fmt.Println("Comentario")
 		return c.Comment
 	case Type:
+		operators[tokText]++
 		totalOperators = totalOperators + 1
 		fmt.Println("Tipo")
 		return c.Type
 	case Literal:
+		operands[tokText]++
 		totalOperands = totalOperands + 1
 		fmt.Println("Literal")
 		return c.Literal
 	case Punctuation:
+		operators[tokText]++
 		totalOperators = totalOperators + 1
 		fmt.Println("Signo de puntiacion")
 		return c.Punctuation
 	case Plaintext:
+		operands[tokText]++
 		totalOperands = totalOperands + 1
 		fmt.Println("Texto plano")
 		return c.Plaintext
@@ -110,6 +119,7 @@ func (c HTMLConfig) Class(kind Kind,tokText string) string {
 		fmt.Println("Valor html")
 		return c.HTMLAttrValue
 	case Decimal:
+		operands[tokText]++
 		totalOperands = totalOperands + 1
 		fmt.Println("Decimal")
 		return c.Decimal
@@ -186,6 +196,8 @@ var DefaultHTMLConfig = HTMLConfig{
 
 func Print(s *scanner.Scanner, w io.Writer, p Printer) error {
 	tok := s.Scan()
+	operators = make(map[string]int)
+    operands = make(map[string]int)
 	for tok != scanner.EOF {
 		tokText := s.TokenText()
 		err := p.Print(w, tokenKind(tok, tokText), tokText)
@@ -195,6 +207,10 @@ func Print(s *scanner.Scanner, w io.Writer, p Printer) error {
 
 		tok = s.Scan()
 	}
+	fmt.Printf("Existen %d operadores diferentes", len(operators))
+	fmt.Println("")
+	fmt.Printf("Existen %d operandos diferentes", len(operands))
+	fmt.Println("")
 
 	return nil
 }
