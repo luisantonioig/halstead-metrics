@@ -6,6 +6,7 @@ package syntaxhighlight
 import (
 	"bytes"
 	"io"
+	"math"
 	"text/scanner"
 	"text/template"
 	"unicode"
@@ -18,7 +19,9 @@ import (
 // A syntax highlighting scheme (style) maps text style properties to each token kind.
 type Kind uint8
 var totalOperators = 0
+var differentOperators = 0
 var totalOperands = 0
+var differentOperands = 0
 var comments = 0
 
 var operators map[string]int
@@ -207,11 +210,6 @@ func Print(s *scanner.Scanner, w io.Writer, p Printer) error {
 
 		tok = s.Scan()
 	}
-	fmt.Printf("Existen %d operadores diferentes", len(operators))
-	fmt.Println("")
-	fmt.Printf("Existen %d operandos diferentes", len(operands))
-	fmt.Println("")
-
 	return nil
 }
 
@@ -247,8 +245,36 @@ func AsHTML(src []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	differentOperands = len(operands)
+	differentOperators = len(operators)
+	fmt.Printf("Existen %d operadores diferentes", len(operators))
+	fmt.Println("")
+	fmt.Printf("Existen %d operandos diferentes", len(operands))
+	fmt.Println("")
 	fmt.Printf("El codigo tiene %d comentarios, %d operandos y %d operadores",comments,totalOperands,totalOperators)
 	fmt.Println("")
+	/*differentOperators = 10
+	differentOperands = 7
+	totalOperands = 15
+	totalOperators = 16*/
+	//logarithm1 = math.Log2(float64(differentOperators))
+	//logarithm2 = math.Log2(float64(differentOperands))
+	programVocabulary := differentOperands + differentOperators
+	programLength := totalOperands + totalOperators
+    calculatedProgramLength := (float64(differentOperators)*(math.Log2(float64(differentOperators))))+(float64(differentOperands)*(math.Log2(float64(differentOperands))))
+    volume := float64(programLength) * math.Log2(float64(programVocabulary))
+    difficulty := (float64(differentOperators)/2)*(float64(totalOperands)/float64(differentOperands))
+    effort := difficulty * volume
+    timeRequiredToProgram := effort / 18
+    numberOfDeliveredBugs := math.Pow(effort,2.0/3.0) / 3000
+
+    fmt.Printf("El tamaño calculado del programa es %f y el volumen es %f\n",calculatedProgramLength,volume)
+    fmt.Printf("La dificultad del programa es %f\n",difficulty)
+    fmt.Printf("El esfuerzo del programa es %f\n",effort)
+    fmt.Printf("El tiempo requerido para programar es %f\n",timeRequiredToProgram)
+    fmt.Printf("El numero de bugs es %f\n",numberOfDeliveredBugs)
+
+
 	return buf.Bytes(), nil
 }
 
