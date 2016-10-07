@@ -1,0 +1,15 @@
+Comments are not considered
+Identifiers and function declarations are not considered
+Variables and constants are considered operands
+Global variables used in different modules of the same program are counted as multiple occurrences of the same variable
+Local variables with the same name in different functions are counted as unique operands
+Function calls are considered as operators
+All looping and control statements are considered as operators (do, while, for, if, else,  etc.)
+In control constructs: switch() {case:...} switch as well as the case statements are considered as operators
+Reserved words like return, default, continue, break, sizeof, etc. are considered as operators
+All the brackets, commas, terminators are considered as operators.
+GOTO is counted as an operator and the label is counted as an operand.
+Unary and binary occurrence of “+” and “-” are dealt separately. Similar “*” are dealt with separately.
+In the array variables such as “array-name [index]“,  ”array-name” and “index‘ are considered as operands and [ ] is considered as operator
+In the structure variables such as “struct-name, member-name” or “struct-name  -> member-name” are taken as operands and “.”, “->” are taken as operators. Some names of the member elements in different structure variables are counted as unique operands
+All the hash directives are ignored

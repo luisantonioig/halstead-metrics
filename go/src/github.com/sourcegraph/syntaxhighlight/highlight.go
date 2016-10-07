@@ -27,6 +27,11 @@ var comments = 0
 var operators map[string]int
 var operands map[string]int
 
+var wait_eq = false
+var wait_eqq = false
+
+var estado = "contando"
+
 const (
 	Whitespace Kind = iota
 	String
@@ -43,7 +48,7 @@ const (
 	Decimal
 )
 
-//go:generate gostringer -type=Kind
+//go:generate GoStringer -type=Kind
 
 type Printer interface {
 	Print(w io.Writer, kind Kind, tokText string) error
@@ -71,61 +76,95 @@ type HTMLPrinter HTMLConfig
 
 // Class returns the set class for a given token Kind.
 func (c HTMLConfig) Class(kind Kind,tokText string) string {
-	if(tokText!=" " && tokText!="\n"){
-	    fmt.Print(tokText,"\t")
-    }
-	switch kind {
-	case String:
-		operands[tokText]++
-		totalOperands = totalOperands + 1
-		fmt.Println("Cadena")
-		return c.String
-	case Keyword:
-		operators[tokText]++
-		totalOperators = totalOperators + 1
-		fmt.Println("Palabra reservada")
-		return c.Keyword
-	case Comment:
-		comments++
-		fmt.Println("Comentario")
-		return c.Comment
-	case Type:
-		operators[tokText]++
-		totalOperators = totalOperators + 1
-		fmt.Println("Tipo")
-		return c.Type
-	case Literal:
-		operands[tokText]++
-		totalOperands = totalOperands + 1
-		fmt.Println("Literal")
-		return c.Literal
-	case Punctuation:
-		operators[tokText]++
-		totalOperators = totalOperators + 1
-		fmt.Println("Signo de puntiacion")
-		return c.Punctuation
-	case Plaintext:
-		operands[tokText]++
-		totalOperands = totalOperands + 1
-		fmt.Println("Texto plano")
-		return c.Plaintext
-	case Tag:
-		fmt.Println("Etiqueta")
-		return c.Tag
-	case HTMLTag:
-		fmt.Println("Etiqueta html")
-		return c.HTMLTag
-	case HTMLAttrName:
-		fmt.Println("Atributo html")
-		return c.HTMLAttrName
-	case HTMLAttrValue:
-		fmt.Println("Valor html")
-		return c.HTMLAttrValue
-	case Decimal:
-		operands[tokText]++
-		totalOperands = totalOperands + 1
-		fmt.Println("Decimal")
-		return c.Decimal
+
+    if estado == "contando"{
+	    switch kind {
+	    case String:
+	    	operands[tokText]++
+	    	totalOperands = totalOperands + 1
+	    	fmt.Println("Cadena\t",tokText,totalOperands)
+	    	return c.String
+	    case Keyword:
+	    	if tokText != "func" {
+	    	    operators[tokText]++
+	    	    totalOperators = totalOperators + 1
+	    	    /*fmt.Print(totalOperators)
+	    	    fmt.Print(tokText,"\t")
+	    	    fmt.Println("Palabra reservada")*/
+	    	}else{
+	    		estado = "no contando"
+	    	}
+	    	return c.Keyword
+	    case Comment:
+	    	comments++
+	    	//fmt.Println("Comentario")
+	    	return c.Comment
+	    case Type:
+	    	operands[tokText]++
+	    	totalOperands = totalOperands + 1
+	    	fmt.Println("Tipo\t",tokText,totalOperands)
+	    	return c.Type
+	    case Literal:
+	    	//operands[tokText]++
+	    	//totalOperands = totalOperands + 1
+	    	//fmt.Println("Literal")
+	    	return c.Literal
+	    case Punctuation:
+	    	if(tokText!="}" && tokText!="]" && tokText!=")" && tokText!="."){
+	    	    operators[tokText]++
+	    	    totalOperators = totalOperators + 1
+                if(tokText==":"){
+                	wait_eq = true
+                }
+                if(tokText =="=" && wait_eq){
+                	operators[":"]--
+                	operators["="]--
+                	operators["declaracion"]++
+                	totalOperators = totalOperators - 1
+                	wait_eq = false
+                }
+                if(tokText=="!"){
+                	wait_eqq = true
+                }
+                if(tokText =="=" && wait_eqq){
+                	operators["!"]--
+                	operators["="]--
+                	operators["comparacion"]++
+                	totalOperators = totalOperators - 1
+                	wait_eqq = false
+                }
+	    	    /*fmt.Print(totalOperators)
+	    		fmt.Print(tokText,"\t")
+	    	    fmt.Println("Signo de puntiacion")*/
+            }
+	    	return c.Punctuation
+	    case Plaintext:
+	    	operands[tokText]++
+	    	totalOperands = totalOperands + 1
+	    	fmt.Println("Texto plano\t",tokText,totalOperands)
+	    	return c.Plaintext
+	    case Tag:
+	    	//fmt.Println("Etiqueta")
+	    	return c.Tag
+	    case HTMLTag:
+	    	//fmt.Println("Etiqueta html")
+	    	return c.HTMLTag
+	    case HTMLAttrName:
+	    	//fmt.Println("Atributo html")
+	    	return c.HTMLAttrName
+	    case HTMLAttrValue:
+	    	//fmt.Println("Valor html")
+	    	return c.HTMLAttrValue
+	    case Decimal:
+	    	operands[tokText]++
+	    	totalOperands = totalOperands + 1
+	    	fmt.Println("Decimal\t",tokText,totalOperands)
+	    	return c.Decimal
+	    }
+	}else{
+		if(tokText == "{"){
+			estado = "contando"
+		}
 	}
 	return ""
 }
@@ -247,6 +286,15 @@ func AsHTML(src []byte) ([]byte, error) {
 	}
 	differentOperands = len(operands)
 	differentOperators = len(operators)
+
+    fmt.Println("Operators\n--------------------------------")
+	for key, value := range operators {
+        fmt.Println("Key:", key, "Value:", value)
+    }
+    fmt.Println("Operands\n--------------------------------")
+    for key, value := range operands {
+        fmt.Println("Key:", key, "Value:", value)
+    }
 	fmt.Printf("Existen %d operadores diferentes", len(operators))
 	fmt.Println("")
 	fmt.Printf("Existen %d operandos diferentes", len(operands))
@@ -256,11 +304,19 @@ func AsHTML(src []byte) ([]byte, error) {
 	/*differentOperators = 10
 	differentOperands = 7
 	totalOperands = 15
-	totalOperators = 16*/
+	totalOperators = 16
+
+    differentOperators = 31
+	differentOperands = 13
+	totalOperands = 15
+	totalOperators = 109*/
+
 	//logarithm1 = math.Log2(float64(differentOperators))
 	//logarithm2 = math.Log2(float64(differentOperands))
 	programVocabulary := differentOperands + differentOperators
 	programLength := totalOperands + totalOperators
+	var hola = (float64(differentOperands)*(math.Log2(float64(differentOperands))))
+	fmt.Println(hola,"                                  Hoooola")
     calculatedProgramLength := (float64(differentOperators)*(math.Log2(float64(differentOperators))))+(float64(differentOperands)*(math.Log2(float64(differentOperands))))
     volume := float64(programLength) * math.Log2(float64(programVocabulary))
     difficulty := (float64(differentOperators)/2)*(float64(totalOperands)/float64(differentOperands))
@@ -273,7 +329,23 @@ func AsHTML(src []byte) ([]byte, error) {
     fmt.Printf("El esfuerzo del programa es %f\n",effort)
     fmt.Printf("El tiempo requerido para programar es %f\n",timeRequiredToProgram)
     fmt.Printf("El numero de bugs es %f\n",numberOfDeliveredBugs)
+    fmt.Println("",)
+    fmt.Println("",)
+    for i := 1; i <= 52 ; i++{
+    	for j := 1; j <= 52 ; j++{
+    		tam := (float64(i)*(math.Log2(float64(i))))+(float64(j)*(math.Log2(float64(j))))
+    		if tam > 48 && tam < 49{
+    			fmt.Printf("i = %d\n",i)
+    	    	fmt.Printf("j = %d\n",j)
+    			fmt.Printf("El tamaño calculado es %f\n",tam)
+    		}else{
+    			//fmt.Printf("El tamaño calculado es %f\n",tam)
+    		}
+    	}
+    }
 
+
+    
 
 	return buf.Bytes(), nil
 }

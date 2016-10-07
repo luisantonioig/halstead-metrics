@@ -1,0 +1,3 @@
+- No se cuentan los signos de = como asignación
+- No se cuentan los parentesis en la llamada a una función
+- Las comas si se cuentan
