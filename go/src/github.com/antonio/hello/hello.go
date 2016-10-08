@@ -34,7 +34,7 @@ function b() {
 }`)
     reflect.TypeOf(src)
 
-    dat1, err2 := ioutil.ReadFile("/home/vagrant/archivos/codigo.txt")
+    dat1, err2 := ioutil.ReadFile("/home/vagrant/archivos/halstead-metrics/codigo.txt")
     check(err2)
     //fmt.Print(string(dat1))
     
