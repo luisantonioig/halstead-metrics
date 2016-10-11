@@ -1,6 +1,7 @@
 # Métricas de Halstead
 
-Herramienta para el cálculo de las Métricas de Halstead
+Herramienta para el cálculo de las Métricas de Halstead tomando en cuenta las siguientes reglas:
+
 
 ## Instalación
 
