@@ -17,6 +17,13 @@ func main(){
     //De una consulta de sql dice cuales son las columnas
     //y cual es la tabla a las que se les hace la consulta.
     //También dice si existe un error sintáctico
+    var dirs []string
+    if len(os.Args) > 1 {
+        dirs = os.Args[1:]
+    } else {
+        dirs = []string{"."}
+    }
+    fmt.Println(dirs)
     _ , err:= goo.NewParser(strings.NewReader("SELECT SELEC from mi_tabla")).Parse()
     if err != nil{
         fmt.Println(err)
@@ -45,7 +52,7 @@ function b() {
         }
 
         //fmt.Println(string(highlighted))
-        fmt.Println("Hola")
+        fmt.Println("Hola27")
 
     
 /*
