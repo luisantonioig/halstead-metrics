@@ -23,7 +23,7 @@ func main(){
     } else {
         dirs = []string{"."}
     }
-    fmt.Println(dirs)
+    fmt.Println(os.Args)
     _ , err:= goo.NewParser(strings.NewReader("SELECT SELEC from mi_tabla")).Parse()
     if err != nil{
         fmt.Println(err)
