@@ -1,2 +1,5 @@
 *.exe
 *.a
+go/bin/hello
+*.a
+go/pkg/linux_amd64/github.com/sourcegraph/annotate.a
