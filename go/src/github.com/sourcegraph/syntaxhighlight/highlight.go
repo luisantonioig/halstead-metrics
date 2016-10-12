@@ -30,7 +30,11 @@ var operands map[string]int
 var wait_eq = false
 var wait_eqq = false
 
-var estado = "contando"
+var state = "contando"
+var func_call = 0
+var var_call = 0
+
+var variable = ""
 
 const (
 	Whitespace Kind = iota
@@ -76,95 +80,140 @@ type HTMLPrinter HTMLConfig
 
 // Class returns the set class for a given token Kind.
 func (c HTMLConfig) Class(kind Kind,tokText string) string {
-
-    if estado == "contando"{
-	    switch kind {
-	    case String:
-	    	operands[tokText]++
-	    	totalOperands = totalOperands + 1
-	    	fmt.Println("Cadena\t",tokText,totalOperands)
-	    	return c.String
-	    case Keyword:
-	    	if tokText != "func" {
-	    	    operators[tokText]++
-	    	    totalOperators = totalOperators + 1
-	    	    /*fmt.Print(totalOperators)
-	    	    fmt.Print(tokText,"\t")
-	    	    fmt.Println("Palabra reservada")*/
-	    	}else{
-	    		estado = "no contando"
-	    	}
-	    	return c.Keyword
-	    case Comment:
-	    	comments++
-	    	//fmt.Println("Comentario")
-	    	return c.Comment
-	    case Type:
-	    	operands[tokText]++
-	    	totalOperands = totalOperands + 1
-	    	fmt.Println("Tipo\t",tokText,totalOperands)
-	    	return c.Type
-	    case Literal:
-	    	//operands[tokText]++
-	    	//totalOperands = totalOperands + 1
-	    	//fmt.Println("Literal")
-	    	return c.Literal
-	    case Punctuation:
-	    	if(tokText!="}" && tokText!="]" && tokText!=")" && tokText!="."){
-	    	    operators[tokText]++
-	    	    totalOperators = totalOperators + 1
+		fmt.Println("results",func_call,var_call)
+	switch kind {
+	case String:
+		func_call=0
+		var_call=0
+		variable = ""
+	    operands[tokText]++
+	    totalOperands = totalOperands + 1
+	    fmt.Println("Cadena\t",tokText)
+	    return c.String
+	case Keyword:
+		func_call=0
+		var_call=0
+		variable = ""
+	    operators[tokText]++
+	    totalOperators = totalOperators + 1
+	    fmt.Println("Keyword\t",tokText)
+	    return c.Keyword
+	case Comment:
+		func_call=0
+		var_call=0
+		variable = ""
+	    comments++
+	    fmt.Println("Comentario")
+	    return c.Comment
+	case Type:
+		if func_call == 2{
+			fmt.Println("Llamada a una funcion")
+			func_call = 0
+			var_call = 0
+			operands[variable]--
+			totalOperands--
+			if operands[variable] == 0{
+				delete(operands,variable)
+			}
+			operators[variable+"."+tokText+"()"]++
+			totalOperators++
+		    variable = ""
+			break
+		}else{
+		    func_call=0
+		    var_call=0
+		    variable = ""
+		}
+	    operands[tokText]++
+	    totalOperands = totalOperands + 1
+	    fmt.Println("Tipo\t",tokText)
+	    return c.Type
+	case Literal:
+		func_call=0
+		var_call=0
+		variable = ""
+	    fmt.Println("Literal\t",tokText)
+	    return c.Literal
+	case Punctuation:
+		if(tokText=="."){
+			func_call++
+			var_call++
+		}else{
+		    func_call=0
+		    var_call=0
+		    variable = ""
+		}
+	    if(tokText!="}" && tokText!="]" && tokText!=")" && tokText!="." && tokText!="{" && tokText!="("){
+	        operators[tokText]++
+	        totalOperators = totalOperators + 1
                 if(tokText==":"){
-                	wait_eq = true
+               	    wait_eq = true
                 }
                 if(tokText =="=" && wait_eq){
-                	operators[":"]--
-                	operators["="]--
-                	operators["declaracion"]++
-                	totalOperators = totalOperators - 1
-                	wait_eq = false
-                }
-                if(tokText=="!"){
-                	wait_eqq = true
-                }
-                if(tokText =="=" && wait_eqq){
-                	operators["!"]--
-                	operators["="]--
-                	operators["comparacion"]++
-                	totalOperators = totalOperators - 1
-                	wait_eqq = false
-                }
-	    	    /*fmt.Print(totalOperators)
-	    		fmt.Print(tokText,"\t")
-	    	    fmt.Println("Signo de puntiacion")*/
+            	    operators[":"]--
+            	    operators["="]--
+            	if operators[":"] == 0{
+            	    delete(operators,":")
+            	}
+            	if operators["="] == 0{
+            	    delete(operators,"=")
+            	}
+            	operators["declaracion"]++
+            	totalOperators = totalOperators - 1
+            	wait_eq = false
             }
-	    	return c.Punctuation
-	    case Plaintext:
-	    	operands[tokText]++
-	    	totalOperands = totalOperands + 1
-	    	fmt.Println("Texto plano\t",tokText,totalOperands)
-	    	return c.Plaintext
-	    case Tag:
-	    	//fmt.Println("Etiqueta")
-	    	return c.Tag
-	    case HTMLTag:
-	    	//fmt.Println("Etiqueta html")
-	    	return c.HTMLTag
-	    case HTMLAttrName:
-	    	//fmt.Println("Atributo html")
-	    	return c.HTMLAttrName
-	    case HTMLAttrValue:
-	    	//fmt.Println("Valor html")
-	    	return c.HTMLAttrValue
-	    case Decimal:
-	    	operands[tokText]++
-	    	totalOperands = totalOperands + 1
-	    	fmt.Println("Decimal\t",tokText,totalOperands)
-	    	return c.Decimal
-	    }
-	}else{
-		if(tokText == "{"){
-			estado = "contando"
+            if(tokText=="!"){
+               	wait_eqq = true
+            }
+            if(tokText =="=" && wait_eqq){
+            	operators["!"]--
+            	operators["="]--
+            	operators["comparacion"]++
+            	totalOperators = totalOperators - 1
+            	wait_eqq = false
+            }
+		    fmt.Println("Punt\t",tokText)
+        }
+		return c.Punctuation
+	case Plaintext:
+		func_call++
+		var_call++
+		if var_call ==3{
+			func_call = 0
+			var_call = 0
+			fmt.Println("Llamada a una variable")
+			operands[variable]--
+			if operands[variable] == 0{
+				delete(operands,variable)
+			}
+			operands[variable+"."+tokText]++
+		    variable = ""
+			break
 		}
+		if var_call ==1{
+			variable = tokText
+		}
+		operands[tokText]++
+		totalOperands = totalOperands + 1
+		fmt.Println("Text plan\t",tokText)
+	    return c.Plaintext
+	case Tag:
+		//fmt.Println("Etiqueta")
+	    return c.Tag
+	case HTMLTag:
+		//fmt.Println("Etiqueta html")
+		return c.HTMLTag
+	case HTMLAttrName:
+		//fmt.Println("Atributo html")
+	    return c.HTMLAttrName
+	case HTMLAttrValue:
+		//fmt.Println("Valor html")
+	    return c.HTMLAttrValue
+	case Decimal:
+		operands[tokText]++
+		totalOperands = totalOperands + 1
+		fmt.Println("Decimal\t",tokText)
+		return c.Decimal
 	}
 	return ""
 }
