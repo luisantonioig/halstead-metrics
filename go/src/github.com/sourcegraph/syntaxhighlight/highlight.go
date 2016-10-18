@@ -10,7 +10,7 @@ import (
 	"text/scanner"
 	"text/template"
 	"unicode"
-	"unicode/utf8"
+	//"unicode/utf8"
     "fmt"
 	"github.com/sourcegraph/annotate"
 )
@@ -24,6 +24,7 @@ var totalOperands = 0
 var differentOperands = 0
 var comments = 0
 
+var tokens []string
 var operators map[string]int
 var operands map[string]int
 
@@ -35,6 +36,8 @@ var func_call = 0
 var var_call = 0
 
 var variable = ""
+
+var i = 0
 
 const (
 	Whitespace Kind = iota
@@ -80,7 +83,10 @@ type HTMLPrinter HTMLConfig
 
 // Class returns the set class for a given token Kind.
 func (c HTMLConfig) Class(kind Kind,tokText string) string {
-		fmt.Println("results",func_call,var_call)
+	fmt.Println("results",func_call,var_call)
+		i++
+		tokens = append(tokens,tokText)
+	
 	switch kind {
 	case String:
 		func_call=0
@@ -106,7 +112,17 @@ func (c HTMLConfig) Class(kind Kind,tokText string) string {
 	    fmt.Println("Comentario")
 	    return c.Comment
 	case Type:
-		if func_call == 2{
+		if var_call == 2{
+			var_call++
+			operands[variable]--
+			if operands[variable] == 0{
+				delete(operands,variable)
+			}
+			operands[variable+"."+tokText]++
+			variable = variable+"."+tokText
+			break;
+		}
+		/*if func_call == 2{
 			fmt.Println("Llamada a una funcion")
 			func_call = 0
 			var_call = 0
@@ -123,7 +139,9 @@ func (c HTMLConfig) Class(kind Kind,tokText string) string {
 		    func_call=0
 		    var_call=0
 		    variable = ""
-		}
+		}*/
+		var_call++
+		variable = tokText
 	    operands[tokText]++
 	    totalOperands = totalOperands + 1
 	    fmt.Println("Tipo\t",tokText)
@@ -135,6 +153,15 @@ func (c HTMLConfig) Class(kind Kind,tokText string) string {
 	    fmt.Println("Literal\t",tokText)
 	    return c.Literal
 	case Punctuation:
+		if tokText=="("&&(var_call==3||(var_call==1 && tokens[i-3] != "func")){
+			operands[variable]--
+			totalOperands--
+			if operands[variable] == 0{
+				delete(operands,variable)
+			}
+			operators[variable+"()"]++
+			totalOperators++
+		}
 		if(tokText=="."){
 			func_call++
 			var_call++
@@ -152,6 +179,8 @@ func (c HTMLConfig) Class(kind Kind,tokText string) string {
                 if(tokText =="=" && wait_eq){
             	    operators[":"]--
             	    operators["="]--
+            	    character:=":"+"="
+            	    operators[character]++
             	if operators[":"] == 0{
             	    delete(operators,":")
             	}
@@ -215,6 +244,9 @@ func (c HTMLConfig) Class(kind Kind,tokText string) string {
 		fmt.Println("Decimal\t",tokText)
 		return c.Decimal
 	}
+	fmt.Println("El tamaño de tokens son:",len(tokens))
+	i--
+	tokens = tokens[:len(tokens)-1]
 	return ""
 }
 
@@ -297,6 +329,9 @@ func Print(s *scanner.Scanner, w io.Writer, p Printer) error {
 		}
 
 		tok = s.Scan()
+		if len(tokens) > 0{
+		    fmt.Println("-----------------------------",tokens[i-1])
+		}
 	}
 	return nil
 }
@@ -419,11 +454,9 @@ func tokenKind(tok rune, tokText string) Kind {
 	case scanner.Ident:
 		if _, isKW := keywords[tokText]; isKW {
 			return Keyword
-		}
-		if r, _ := utf8.DecodeRuneInString(tokText); unicode.IsUpper(r) {
+		}else{
 			return Type
 		}
-		return Plaintext
 	case scanner.Float, scanner.Int:
 		return Decimal
 	case scanner.Char, scanner.String, scanner.RawString:
