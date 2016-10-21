@@ -83,7 +83,6 @@ type HTMLPrinter HTMLConfig
 
 // Class returns the set class for a given token Kind.
 func (c HTMLConfig) Class(kind Kind,tokText string) string {
-	fmt.Println("results",func_call,var_call)
 		i++
 		tokens = append(tokens,tokText)
 	
@@ -94,7 +93,6 @@ func (c HTMLConfig) Class(kind Kind,tokText string) string {
 		variable = ""
 	    operands[tokText]++
 	    totalOperands = totalOperands + 1
-	    fmt.Println("Cadena\t",tokText)
 	    return c.String
 	case Keyword:
 		func_call=0
@@ -102,14 +100,12 @@ func (c HTMLConfig) Class(kind Kind,tokText string) string {
 		variable = ""
 	    operators[tokText]++
 	    totalOperators = totalOperators + 1
-	    fmt.Println("Keyword\t",tokText)
 	    return c.Keyword
 	case Comment:
 		func_call=0
 		var_call=0
 		variable = ""
 	    comments++
-	    fmt.Println("Comentario")
 	    return c.Comment
 	case Type:
 		if var_call == 2{
@@ -126,13 +122,11 @@ func (c HTMLConfig) Class(kind Kind,tokText string) string {
 		variable = tokText
 	    operands[tokText]++
 	    totalOperands = totalOperands + 1
-	    fmt.Println("Tipo\t",tokText)
 	    return c.Type
 	case Literal:
 		func_call=0
 		var_call=0
 		variable = ""
-	    fmt.Println("Literal\t",tokText)
 	    return c.Literal
 	case Punctuation:
 		if tokText=="("&&(var_call==3||(var_call==1 && tokens[i-3] != "func")){
@@ -183,7 +177,6 @@ func (c HTMLConfig) Class(kind Kind,tokText string) string {
             	totalOperators = totalOperators - 1
             	wait_eqq = false
             }
-		    fmt.Println("Punt\t",tokText)
         }
 		return c.Punctuation
 	case Plaintext:
@@ -192,7 +185,6 @@ func (c HTMLConfig) Class(kind Kind,tokText string) string {
 		if var_call ==3{
 			func_call = 0
 			var_call = 0
-			fmt.Println("Llamada a una variable")
 			operands[variable]--
 			if operands[variable] == 0{
 				delete(operands,variable)
@@ -206,7 +198,6 @@ func (c HTMLConfig) Class(kind Kind,tokText string) string {
 		}
 		operands[tokText]++
 		totalOperands = totalOperands + 1
-		fmt.Println("Text plan\t",tokText)
 	    return c.Plaintext
 	case Tag:
 	    return c.Tag
@@ -219,10 +210,8 @@ func (c HTMLConfig) Class(kind Kind,tokText string) string {
 	case Decimal:
 		operands[tokText]++
 		totalOperands = totalOperands + 1
-		fmt.Println("Decimal\t",tokText)
 		return c.Decimal
 	}
-	fmt.Println("El tamaño de tokens son:",len(tokens))
 	i--
 	tokens = tokens[:len(tokens)-1]
 	return ""
@@ -305,9 +294,6 @@ func Print(s *scanner.Scanner, w io.Writer, p Printer) error {
 		}
 
 		tok = s.Scan()
-		if len(tokens) > 0{
-		    fmt.Println("-----------------------------",tokens[i-1])
-		}
 	}
 	return nil
 }
@@ -350,11 +336,11 @@ func AsHTML(src []byte) ([]byte, error) {
 	for key, value := range operators {
         fmt.Println("Key:", key, "Value:", value)
     }
-    fmt.Println("Operands\n--------------------------------")
+    fmt.Println("\n\nOperands\n--------------------------------")
     for key, value := range operands {
         fmt.Println("Key:", key, "Value:", value)
     }
-	fmt.Printf("Existen %d operadores diferentes", len(operators))
+	fmt.Printf("\n\nExisten %d operadores diferentes", len(operators))
 	fmt.Println("")
 	fmt.Printf("Existen %d operandos diferentes", len(operands))
 	fmt.Println("")
@@ -363,7 +349,7 @@ func AsHTML(src []byte) ([]byte, error) {
 	programVocabulary := differentOperands + differentOperators
 	programLength := totalOperands + totalOperators
 	var hola = (float64(differentOperands)*(math.Log2(float64(differentOperands))))
-	fmt.Println(hola,"                                  Hoooola")
+	fmt.Println(hola)
     calculatedProgramLength := (float64(differentOperators)*(math.Log2(float64(differentOperators))))+(float64(differentOperands)*(math.Log2(float64(differentOperands))))
     volume := float64(programLength) * math.Log2(float64(programVocabulary))
     difficulty := (float64(differentOperators)/2)*(float64(totalOperands)/float64(differentOperands))
@@ -377,17 +363,6 @@ func AsHTML(src []byte) ([]byte, error) {
     fmt.Printf("El numero de bugs es %f\n",numberOfDeliveredBugs)
     fmt.Println("",)
     fmt.Println("",)
-    for i := 1; i <= 52 ; i++{
-    	for j := 1; j <= 52 ; j++{
-    		tam := (float64(i)*(math.Log2(float64(i))))+(float64(j)*(math.Log2(float64(j))))
-    		if tam > 48 && tam < 49{
-    			fmt.Printf("i = %d\n",i)
-    	    	fmt.Printf("j = %d\n",j)
-    			fmt.Printf("El tamaño calculado es %f\n",tam)
-    		}else{
-    		}
-    	}
-    }
 
 
     
