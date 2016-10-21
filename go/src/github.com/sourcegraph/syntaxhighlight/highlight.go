@@ -122,24 +122,6 @@ func (c HTMLConfig) Class(kind Kind,tokText string) string {
 			variable = variable+"."+tokText
 			break;
 		}
-		/*if func_call == 2{
-			fmt.Println("Llamada a una funcion")
-			func_call = 0
-			var_call = 0
-			operands[variable]--
-			totalOperands--
-			if operands[variable] == 0{
-				delete(operands,variable)
-			}
-			operators[variable+"."+tokText+"()"]++
-			totalOperators++
-		    variable = ""
-			break
-		}else{
-		    func_call=0
-		    var_call=0
-		    variable = ""
-		}*/
 		var_call++
 		variable = tokText
 	    operands[tokText]++
@@ -227,16 +209,12 @@ func (c HTMLConfig) Class(kind Kind,tokText string) string {
 		fmt.Println("Text plan\t",tokText)
 	    return c.Plaintext
 	case Tag:
-		//fmt.Println("Etiqueta")
 	    return c.Tag
 	case HTMLTag:
-		//fmt.Println("Etiqueta html")
 		return c.HTMLTag
 	case HTMLAttrName:
-		//fmt.Println("Atributo html")
 	    return c.HTMLAttrName
 	case HTMLAttrValue:
-		//fmt.Println("Valor html")
 	    return c.HTMLAttrValue
 	case Decimal:
 		operands[tokText]++
@@ -282,8 +260,6 @@ type Annotator interface {
 
 type HTMLAnnotator HTMLConfig
 
-
-//Esta es la función que devuelve las etiquetas en código html con span------------------------------------------------------------------------
 func (a HTMLAnnotator) Annotate(start int, kind Kind, tokText string) (*annotate.Annotation, error) {
 	class := ((HTMLConfig)(a)).Class(kind,tokText)
 	if class != "" {
@@ -361,7 +337,6 @@ func Annotate(src []byte, a Annotator) (annotate.Annotations, error) {
 	return anns, nil
 }
 
-//Retorna en bytes en código html los tokens con etiquetas de spam
 func AsHTML(src []byte) ([]byte, error) {
 	var buf bytes.Buffer
 	err := Print(NewScanner(src), &buf, HTMLPrinter(DefaultHTMLConfig))
@@ -385,18 +360,6 @@ func AsHTML(src []byte) ([]byte, error) {
 	fmt.Println("")
 	fmt.Printf("El codigo tiene %d comentarios, %d operandos y %d operadores",comments,totalOperands,totalOperators)
 	fmt.Println("")
-	/*differentOperators = 10
-	differentOperands = 7
-	totalOperands = 15
-	totalOperators = 16
-
-    differentOperators = 31
-	differentOperands = 13
-	totalOperands = 15
-	totalOperators = 109*/
-
-	//logarithm1 = math.Log2(float64(differentOperators))
-	//logarithm2 = math.Log2(float64(differentOperands))
 	programVocabulary := differentOperands + differentOperators
 	programLength := totalOperands + totalOperators
 	var hola = (float64(differentOperands)*(math.Log2(float64(differentOperands))))
@@ -407,7 +370,6 @@ func AsHTML(src []byte) ([]byte, error) {
     effort := difficulty * volume
     timeRequiredToProgram := effort / 18
     numberOfDeliveredBugs := math.Pow(effort,2.0/3.0) / 3000
-
     fmt.Printf("El tamaño calculado del programa es %f y el volumen es %f\n",calculatedProgramLength,volume)
     fmt.Printf("La dificultad del programa es %f\n",difficulty)
     fmt.Printf("El esfuerzo del programa es %f\n",effort)
@@ -423,7 +385,6 @@ func AsHTML(src []byte) ([]byte, error) {
     	    	fmt.Printf("j = %d\n",j)
     			fmt.Printf("El tamaño calculado es %f\n",tam)
     		}else{
-    			//fmt.Printf("El tamaño calculado es %f\n",tam)
     		}
     	}
     }
