@@ -12,7 +12,7 @@ import (
 	"unicode"
 	//"unicode/utf8"
     "fmt"
-	"annotate"
+	"github.com/sourcegraph/annotate"
 )
 
 // Kind represents a syntax highlighting kind (class) which will be assigned to tokens.
