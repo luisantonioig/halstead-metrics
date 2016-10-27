@@ -1,7 +1,6 @@
 package main
 
 import (
-    "github.com/antonio/halstead/goo"
     "fmt"
     "strings"
     "io/ioutil"
@@ -23,11 +22,11 @@ func main(){
     } else {
         dirs = []string{"."}
     }
-    _ , err:= goo.NewParser(strings.NewReader("SELECT SELEC from mi_tabla")).Parse()
+    /*_ , err:= goo.NewParser(strings.NewReader("SELECT SELEC from mi_tabla")).Parse()
     if err != nil{
         fmt.Println(err)
     }else{
-    }
+    }*/
 
     src := []byte(`
 /* hello, world! */
