@@ -8,7 +8,7 @@ import (
     //"bytes"
     //"log"
     "os"
-    "github.com/sourcegraph/syntaxhighlight"
+    "github.com/luisantonioig/halstead-metrics"
     "reflect"
 )
 
