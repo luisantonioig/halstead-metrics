@@ -30,7 +30,7 @@ function b() {
     reflect.TypeOf(src)
     dat1, err2 := ioutil.ReadFile(dirs[0])
     check(err2)
-        _, err4 := halstead.AsHTML(dat1)
+        _,_, err4 := halstead.AsHTML(dat1)
         if err4 != nil {
             fmt.Println(err4)
             os.Exit(1)
