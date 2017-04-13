@@ -10,11 +10,12 @@ func TestTimeConsuming(t *testing.T) {
     cases := []struct {
 		in, want []byte
 	}{
-		{en1 ,[]byte("3 4")},
+		{en1 ,[]byte("4 3 4 4")},
 	}
 	for _, c := range cases {
-		operators,operands,_ := AsHTML(c.in)
-		got := strconv.Itoa(operators)+ " "+ strconv.Itoa(operands)
+		operators,operands,toperators,toperands,_ := AsHTML(c.in)
+		got := strconv.Itoa(len(operators))+ " "+ strconv.Itoa(len(operands)) + " "+
+		strconv.Itoa(toperators)+ " "+strconv.Itoa(toperands)
 		if string(got) != string(c.want) {
 			t.Errorf("AsHMTL(%q) == %q, want %q", c.in, got, c.want)
 		}

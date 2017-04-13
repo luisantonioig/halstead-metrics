@@ -6,12 +6,10 @@ package halstead
 import (
 	"bytes"
 	"io"
-	"math"
 	"text/scanner"
 	"text/template"
 	"unicode"
 	//"unicode/utf8"
-    "fmt"
 	"github.com/sourcegraph/annotate"
 )
 
@@ -323,51 +321,16 @@ func Annotate(src []byte, a Annotator) (annotate.Annotations, error) {
 	return anns, nil
 }
 
-func AsHTML(src []byte) (int,int, error) {
+func AsHTML(src []byte) (map[string]int,map[string]int,int,int, error) {
 	var buf bytes.Buffer
 	err := Print(NewScanner(src), &buf, HTMLPrinter(DefaultHTMLConfig))
 	if err != nil {
-		return 0,0, err
+		return operators,operands,0,0, err
 	}
-	differentOperands = len(operands)
+
 	differentOperators = len(operators)
-
-    fmt.Println("Operators\n--------------------------------")
-	for key, value := range operators {
-        fmt.Println("Key:", key, "Value:", value)
-    }
-    fmt.Println("\n\nOperands\n--------------------------------")
-    for key, value := range operands {
-        fmt.Println("Key:", key, "Value:", value)
-    }
-	fmt.Printf("\n\nExisten %d operadores diferentes", len(operators))
-	fmt.Println("")
-	fmt.Printf("Existen %d operandos diferentes", len(operands))
-	fmt.Println("")
-	fmt.Printf("El codigo tiene %d comentarios, %d operandos y %d operadores",comments,totalOperands,totalOperators)
-	fmt.Println("")
-	programVocabulary := differentOperands + differentOperators
-	programLength := totalOperands + totalOperators
-	var hola = (float64(differentOperands)*(math.Log2(float64(differentOperands))))
-	fmt.Println(hola)
-    calculatedProgramLength := (float64(differentOperators)*(math.Log2(float64(differentOperators))))+(float64(differentOperands)*(math.Log2(float64(differentOperands))))
-    volume := float64(programLength) * math.Log2(float64(programVocabulary))
-    difficulty := (float64(differentOperators)/2)*(float64(totalOperands)/float64(differentOperands))
-    effort := difficulty * volume
-    timeRequiredToProgram := effort / 18
-    numberOfDeliveredBugs := math.Pow(effort,2.0/3.0) / 3000
-    fmt.Printf("El tamaño calculado del programa es %f y el volumen es %f\n",calculatedProgramLength,volume)
-    fmt.Printf("La dificultad del programa es %f\n",difficulty)
-    fmt.Printf("El esfuerzo del programa es %f\n",effort)
-    fmt.Printf("El tiempo requerido para programar es %f\n",timeRequiredToProgram)
-    fmt.Printf("El numero de bugs es %f\n",numberOfDeliveredBugs)
-    fmt.Println("",)
-    fmt.Println("",)
-
-
-    
-
-	return differentOperands,differentOperators, nil
+	differentOperands = len(operands)
+	return operators,operands,totalOperators,totalOperands, nil
 }
 
 // NewScanner is a helper that takes a []byte src, wraps it in a reader and creates a Scanner.
