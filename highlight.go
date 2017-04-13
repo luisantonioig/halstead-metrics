@@ -323,11 +323,11 @@ func Annotate(src []byte, a Annotator) (annotate.Annotations, error) {
 	return anns, nil
 }
 
-func AsHTML(src []byte) ([]byte, error) {
+func AsHTML(src []byte) (int,int, error) {
 	var buf bytes.Buffer
 	err := Print(NewScanner(src), &buf, HTMLPrinter(DefaultHTMLConfig))
 	if err != nil {
-		return nil, err
+		return 0,0, err
 	}
 	differentOperands = len(operands)
 	differentOperators = len(operators)
@@ -367,7 +367,7 @@ func AsHTML(src []byte) ([]byte, error) {
 
     
 
-	return buf.Bytes(), nil
+	return differentOperands,differentOperators, nil
 }
 
 // NewScanner is a helper that takes a []byte src, wraps it in a reader and creates a Scanner.
