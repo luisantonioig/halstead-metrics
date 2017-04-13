@@ -2,7 +2,6 @@
 import (
 "testing"
 "io/ioutil"
-"fmt"
 "strconv"
 )
 
