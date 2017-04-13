@@ -322,6 +322,9 @@ func Annotate(src []byte, a Annotator) (annotate.Annotations, error) {
 }
 
 func AsHTML(src []byte) (map[string]int,map[string]int,int,int, error) {
+	totalOperators = 0
+	differentOperators = 0
+	totalOperands = 0
 	var buf bytes.Buffer
 	err := Print(NewScanner(src), &buf, HTMLPrinter(DefaultHTMLConfig))
 	if err != nil {
