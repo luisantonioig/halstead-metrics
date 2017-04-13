@@ -1,4 +1,4 @@
-﻿package pruebas
+﻿package halstead
 import "testing"
 
 func TestTimeConsuming(t *testing.T) {
