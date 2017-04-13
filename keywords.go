@@ -1,5 +1,4 @@
-package syntaxhighlight
-
+package halstead
 var keywords = map[string]struct{}{
 	"BEGIN":            {},
 	"END":              {},
