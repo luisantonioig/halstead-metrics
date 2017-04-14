@@ -1,4 +1,4 @@
-# Métricas de Halstead
+# Métricas de Halstead [![Build Status](https://travis-ci.org/luisantonioig/halstead-metrics.svg?branch=master)](https://travis-ci.org/luisantonioig/halstead-metrics)
 
 Herramienta para el cálculo de las Métricas de Halstead tomando en cuenta las siguientes reglas:
 
