@@ -1,5 +1,25 @@
+# Binaries
+halstead
 *.exe
-*.a
-go/bin/hello
-*.a
-go/pkg/linux_amd64/github.com/sourcegraph/annotate.a
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binaries and coverage
+*.test
+*.out
+coverage.out
+
+# Go workspace artifacts
+bin/
+dist/
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
