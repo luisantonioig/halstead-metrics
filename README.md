@@ -46,7 +46,7 @@ A practical workflow looks like this:
 - Helps identify complexity added by generated code at the function level
 - Distinguishes semantic operands such as `var:x`, `func:Println`, `type:string`, `pkg:fmt`
 - Computes standard Halstead-derived values such as vocabulary, length, volume, difficulty, effort, time, and estimated bugs
-- Includes 20 example Go programs in [`testdata/`](/home/antonio/personal/halstead-metrics/testdata)
+- Includes 20 example Go programs in [`testdata/`](testdata/)
 
 ## Project Goal
 
@@ -92,7 +92,7 @@ Why not `go install .`?
 
 - `go install .` targets the package in the repository root
 - the repository root is a library package, not the CLI entry point
-- the executable lives in [`cmd/halstead`](/home/antonio/personal/halstead-metrics/cmd/halstead)
+- the executable lives in [`cmd/halstead`](cmd/halstead)
 
 If the project is published at its module path, you can also install it remotely with:
 
@@ -317,7 +317,7 @@ Thresholds are evaluated against:
 Exit codes:
 
 - `0`: analysis succeeded and all configured thresholds passed
-- `1`: analysis succeeded but at least one threshold failed
+- `1`: analysis failed or at least one configured threshold failed
 - `2`: invalid CLI usage
 
 Example:
@@ -349,9 +349,76 @@ For baseline-aware reviews of generated code:
 
 If this exits with `1`, the generated change increased complexity more than your configured budget.
 
+## CI and Automation
+
+`halstead` is designed to work well in automation because it has machine-readable JSON output and stable exit codes.
+
+### GitHub Actions example
+
+This example builds the CLI and fails the job if a generated or edited file exceeds the configured complexity budget:
+
+```yaml
+name: halstead
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  complexity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Build halstead
+        run: go build -o ./bin/halstead ./cmd/halstead
+
+      - name: Check complexity budget
+        run: |
+          ./bin/halstead \
+            --baseline-git origin/main \
+            --changed-only \
+            --max-volume-delta 20 \
+            --max-difficulty-delta 3 \
+            path/to/generated_file.go
+```
+
+If your CI checkout does not already have the target branch available locally, fetch it before running the comparison:
+
+```bash
+git fetch origin main
+```
+
+### Pre-commit or local hook example
+
+For a simple local quality gate, run `halstead` against a file before committing:
+
+```bash
+./halstead \
+  --max-volume 80 \
+  --max-difficulty 8 \
+  path/to/file.go
+```
+
+For AI-assisted changes, a baseline-aware command is usually more useful:
+
+```bash
+./halstead \
+  --baseline-git HEAD~1 \
+  --changed-only \
+  --max-volume-delta 20 \
+  --max-difficulty-delta 3 \
+  path/to/file.go
+```
+
 ## Example Programs
 
-The [`testdata/`](/home/antonio/personal/halstead-metrics/testdata) directory contains 20 Go examples:
+The [`testdata/`](testdata/) directory contains 20 Go examples:
 
 - `ejem_01.go` to `ejem_05.go`: simple functions, imports, and calls
 - `ejem_06.go` to `ejem_10.go`: parameters, multiple returns, variables, and expressions
@@ -395,8 +462,8 @@ gofmt -w *.go cmd/halstead/*.go
 
 ## Project Structure
 
-- [`cmd/halstead`](/home/antonio/personal/halstead-metrics/cmd/halstead): CLI entry point
-- [`testdata/`](/home/antonio/personal/halstead-metrics/testdata): example Go files used for testing and exploration
+- [`cmd/halstead`](cmd/halstead): CLI entry point
+- [`testdata/`](testdata/): example Go files used for testing and exploration
 - repository root package: analysis logic and Halstead calculations
 
 ## Contributing

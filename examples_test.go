@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestExamplesWorkWithBothAnalyzers(t *testing.T) {
+func TestExampleFixturesProduceMetrics(t *testing.T) {
 	for i := 1; i <= 20; i++ {
 		path := filepath.Join("testdata", exampleName(i))
 		src, err := os.ReadFile(path)

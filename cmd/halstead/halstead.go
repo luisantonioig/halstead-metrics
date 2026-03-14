@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,34 +14,61 @@ import (
 	halstead "github.com/luisantonioig/halstead-metrics"
 )
 
-func main() {
-	jsonOutput := flag.Bool("json", false, "emit machine-readable JSON output")
-	changedOnly := flag.Bool("changed-only", false, "when comparing against a baseline, report only changed or new functions")
-	maxVolume := flag.Float64("max-volume", 0, "fail if file or function volume exceeds this value")
-	maxDifficulty := flag.Float64("max-difficulty", 0, "fail if file or function difficulty exceeds this value")
-	maxEffort := flag.Float64("max-effort", 0, "fail if file or function effort exceeds this value")
-	baselineReport := flag.String("baseline-report", "", "compare current analysis against a saved JSON report")
-	baselineGit := flag.String("baseline-git", "", "compare against the file version stored at the given git revision")
-	maxVolumeDelta := flag.Float64("max-volume-delta", 0, "fail if file or function volume increases more than this amount from baseline")
-	maxDifficultyDelta := flag.Float64("max-difficulty-delta", 0, "fail if file or function difficulty increases more than this amount from baseline")
-	maxEffortDelta := flag.Float64("max-effort-delta", 0, "fail if file or function effort increases more than this amount from baseline")
-	flag.Parse()
+const (
+	ansiRed   = "\033[31m"
+	ansiGreen = "\033[32m"
+	ansiBold  = "\033[1m"
+	ansiReset = "\033[0m"
+)
 
-	if flag.NArg() < 1 {
-		fmt.Fprintln(os.Stderr, "usage: halstead [--json] [--changed-only] [--max-volume N] [--max-difficulty N] [--max-effort N] [--baseline-report report.json] [--baseline-git REV] [--max-volume-delta N] [--max-difficulty-delta N] [--max-effort-delta N] <file.go>")
-		os.Exit(2)
+func main() {
+	os.Exit(exitCode())
+}
+
+func exitCode() int {
+	return runCLI(os.Args[1:])
+}
+
+func runCLI(args []string) int {
+	return run(args, os.Stdout, os.Stderr)
+}
+
+func run(args []string, stdout, stderr io.Writer) int {
+	flags := flag.NewFlagSet("halstead", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	flags.Usage = func() {
+		fmt.Fprintln(stderr, "usage: halstead [--json] [--changed-only] [--max-volume N] [--max-difficulty N] [--max-effort N] [--baseline-report report.json] [--baseline-git REV] [--max-volume-delta N] [--max-difficulty-delta N] [--max-effort-delta N] <file.go>")
+		flags.PrintDefaults()
+	}
+
+	jsonOutput := flags.Bool("json", false, "emit machine-readable JSON output")
+	changedOnly := flags.Bool("changed-only", false, "when comparing against a baseline, report only changed or new functions")
+	maxVolume := flags.Float64("max-volume", 0, "fail if file or function volume exceeds this value")
+	maxDifficulty := flags.Float64("max-difficulty", 0, "fail if file or function difficulty exceeds this value")
+	maxEffort := flags.Float64("max-effort", 0, "fail if file or function effort exceeds this value")
+	baselineReport := flags.String("baseline-report", "", "compare current analysis against a saved JSON report")
+	baselineGit := flags.String("baseline-git", "", "compare against the file version stored at the given git revision")
+	maxVolumeDelta := flags.Float64("max-volume-delta", 0, "fail if file or function volume increases more than this amount from baseline")
+	maxDifficultyDelta := flags.Float64("max-difficulty-delta", 0, "fail if file or function difficulty increases more than this amount from baseline")
+	maxEffortDelta := flags.Float64("max-effort-delta", 0, "fail if file or function effort increases more than this amount from baseline")
+
+	if err := flags.Parse(args); err != nil {
+		return 2
+	}
+	if flags.NArg() < 1 {
+		flags.Usage()
+		return 2
 	}
 	if *baselineReport != "" && *baselineGit != "" {
-		fmt.Fprintln(os.Stderr, "use only one of --baseline-report or --baseline-git")
-		os.Exit(2)
+		fmt.Fprintf(stderr, "halstead: %s use only one of --baseline-report or --baseline-git\n", redLabel("ERROR"))
+		return 2
 	}
 
-	path := flag.Arg(0)
-	src, err := os.ReadFile(path)
-	check(err)
-
-	report, err := halstead.AnalyzeASTReport(src)
-	check(err)
+	path := flags.Arg(0)
+	report, err := halstead.AnalyzeASTFile(path)
+	if err != nil {
+		return printError(stderr, err)
+	}
 	report.Path = path
 	thresholds := halstead.Thresholds{
 		MaxVolume:     *maxVolume,
@@ -55,7 +83,9 @@ func main() {
 	applyThresholds(&report, thresholds)
 	if *baselineReport != "" || *baselineGit != "" {
 		baseline, baselineLabel, err := loadBaseline(path, *baselineReport, *baselineGit)
-		check(err)
+		if err != nil {
+			return printError(stderr, err)
+		}
 		comparison := halstead.CompareReports(baseline, report)
 		comparison.BaselinePath = baselineLabel
 		if *changedOnly {
@@ -66,75 +96,77 @@ func main() {
 		report.Comparison = &comparison
 	}
 	if *jsonOutput {
-		printJSON(report)
-		if reportFailed(report) || comparisonFailed(report) {
-			os.Exit(1)
+		if err := printJSON(stdout, report); err != nil {
+			return printError(stderr, err)
 		}
-		return
+		if reportFailed(report) || comparisonFailed(report) {
+			return 1
+		}
+		return 0
 	}
-	printMetrics(halstead.Metrics{
+	printMetrics(stdout, halstead.Metrics{
 		Name:           report.File.Name,
 		Operators:      report.File.Operators,
 		Operands:       report.File.Operands,
 		TotalOperators: report.File.TotalOperators,
 		TotalOperands:  report.File.TotalOperands,
 	})
-	printFunctions(report.Functions)
-	printThresholdSummary(report)
-	printComparisonSummary(report)
+	printFunctions(stdout, report.Functions)
+	printThresholdSummary(stdout, report)
+	printComparisonSummary(stdout, report)
 	if reportFailed(report) || comparisonFailed(report) {
-		os.Exit(1)
+		return 1
 	}
+	return 0
 }
 
-func check(e error) {
-	if e != nil {
-		panic(e)
-	}
+func printError(stderr io.Writer, err error) int {
+	fmt.Fprintf(stderr, "halstead: %s algo fallo: %v\n", redLabel("ERROR"), err)
+	return 1
 }
 
-func printMetrics(metrics halstead.Metrics) {
-	fmt.Printf("Analyzer: %s\n", metrics.Name)
-	fmt.Println("Operators")
-	fmt.Println("--------------------------------")
-	printCounts(metrics.Operators)
-	fmt.Println()
-	fmt.Println("Operands")
-	fmt.Println("--------------------------------")
-	printCounts(metrics.Operands)
-	fmt.Println()
-	fmt.Printf("Existen %d operadores diferentes\n", metrics.DifferentOperators())
-	fmt.Printf("Existen %d operandos diferentes\n", metrics.DifferentOperands())
-	fmt.Printf("El codigo tiene %d operandos y %d operadores\n", metrics.TotalOperands, metrics.TotalOperators)
-	fmt.Printf("El tamanio calculado del programa es %f y el volumen es %f\n", metrics.CalculatedProgramLength(), metrics.Volume())
-	fmt.Printf("La dificultad del programa es %f\n", metrics.Difficulty())
-	fmt.Printf("El esfuerzo del programa es %f\n", metrics.Effort())
-	fmt.Printf("El tiempo requerido para programar es %f\n", metrics.TimeRequiredToProgram())
-	fmt.Printf("El numero de bugs es %f\n", metrics.NumberOfDeliveredBugs())
+func printMetrics(stdout io.Writer, metrics halstead.Metrics) {
+	fmt.Fprintf(stdout, "Analyzer: %s\n", metrics.Name)
+	fmt.Fprintln(stdout, "Operators")
+	fmt.Fprintln(stdout, "--------------------------------")
+	printCounts(stdout, metrics.Operators)
+	fmt.Fprintln(stdout)
+	fmt.Fprintln(stdout, "Operands")
+	fmt.Fprintln(stdout, "--------------------------------")
+	printCounts(stdout, metrics.Operands)
+	fmt.Fprintln(stdout)
+	fmt.Fprintf(stdout, "Existen %d operadores diferentes\n", metrics.DifferentOperators())
+	fmt.Fprintf(stdout, "Existen %d operandos diferentes\n", metrics.DifferentOperands())
+	fmt.Fprintf(stdout, "El codigo tiene %d operandos y %d operadores\n", metrics.TotalOperands, metrics.TotalOperators)
+	fmt.Fprintf(stdout, "El tamanio calculado del programa es %f y el volumen es %f\n", metrics.CalculatedProgramLength(), metrics.Volume())
+	fmt.Fprintf(stdout, "La dificultad del programa es %f\n", metrics.Difficulty())
+	fmt.Fprintf(stdout, "El esfuerzo del programa es %f\n", metrics.Effort())
+	fmt.Fprintf(stdout, "El tiempo requerido para programar es %f\n", metrics.TimeRequiredToProgram())
+	fmt.Fprintf(stdout, "El numero de bugs es %f\n", metrics.NumberOfDeliveredBugs())
 }
 
-func printFunctions(functions []halstead.FunctionReport) {
+func printFunctions(stdout io.Writer, functions []halstead.FunctionReport) {
 	if len(functions) == 0 {
 		return
 	}
-	fmt.Println()
-	fmt.Println("Functions")
-	fmt.Println("--------------------------------")
+	fmt.Fprintln(stdout)
+	fmt.Fprintln(stdout, "Functions")
+	fmt.Fprintln(stdout, "--------------------------------")
 	for _, function := range functions {
-		fmt.Printf("%s [%s] %d:%d-%d:%d\n", function.Name, function.Kind, function.Start.Line, function.Start.Column, function.End.Line, function.End.Column)
-		fmt.Printf("  volume=%f difficulty=%f effort=%f\n", function.Metrics.Volume, function.Metrics.Difficulty, function.Metrics.Effort)
+		fmt.Fprintf(stdout, "%s [%s] %d:%d-%d:%d\n", function.Name, function.Kind, function.Start.Line, function.Start.Column, function.End.Line, function.End.Column)
+		fmt.Fprintf(stdout, "  volume=%f difficulty=%f effort=%f\n", function.Metrics.Volume, function.Metrics.Difficulty, function.Metrics.Effort)
 		if function.Threshold != nil && !function.Threshold.Passed {
 			for _, violation := range function.Threshold.Violations {
-				fmt.Printf("  threshold failed: %s actual=%f limit=%f\n", violation.Metric, violation.Actual, violation.Limit)
+				fmt.Fprintf(stdout, "  %s complejidad alta en %s: actual=%f limite=%f\n", redLabel("FALLO"), violation.Metric, violation.Actual, violation.Limit)
 			}
 		}
 	}
 }
 
-func printJSON(report halstead.AnalysisReport) {
-	encoder := json.NewEncoder(os.Stdout)
+func printJSON(stdout io.Writer, report halstead.AnalysisReport) error {
+	encoder := json.NewEncoder(stdout)
 	encoder.SetIndent("", "  ")
-	check(encoder.Encode(report))
+	return encoder.Encode(report)
 }
 
 func loadBaselineReport(path string) (halstead.AnalysisReport, error) {
@@ -187,7 +219,7 @@ func loadBaselineFromGit(currentPath, rev string) (halstead.AnalysisReport, erro
 	if err != nil {
 		return halstead.AnalysisReport{}, fmt.Errorf("load baseline from git %s:%s: %w", rev, relPath, err)
 	}
-	report, err := halstead.AnalyzeASTReport([]byte(data))
+	report, err := halstead.AnalyzeASTSource(absPath, []byte(data))
 	if err != nil {
 		return halstead.AnalysisReport{}, err
 	}
@@ -220,14 +252,14 @@ func filterReportFunctionsToComparison(report *halstead.AnalysisReport, comparis
 	report.Functions = filtered
 }
 
-func printCounts(values map[string]int) {
+func printCounts(stdout io.Writer, values map[string]int) {
 	keys := make([]string, 0, len(values))
 	for key := range values {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		fmt.Println("Key:", key, "Value:", values[key])
+		fmt.Fprintln(stdout, "Key:", key, "Value:", values[key])
 	}
 }
 
@@ -241,19 +273,19 @@ func applyThresholds(report *halstead.AnalysisReport, thresholds halstead.Thresh
 	}
 }
 
-func printThresholdSummary(report halstead.AnalysisReport) {
+func printThresholdSummary(stdout io.Writer, report halstead.AnalysisReport) {
 	if report.Threshold == nil {
 		return
 	}
-	fmt.Println()
-	fmt.Println("Thresholds")
-	fmt.Println("--------------------------------")
+	fmt.Fprintln(stdout)
+	fmt.Fprintln(stdout, "Thresholds")
+	fmt.Fprintln(stdout, "--------------------------------")
 	if report.Threshold.Passed {
-		fmt.Println("File metrics passed configured thresholds.")
+		fmt.Fprintf(stdout, "%s metricas del archivo dentro de los limites configurados.\n", greenLabel("OK"))
 	} else {
-		fmt.Println("File metrics exceeded configured thresholds:")
+		fmt.Fprintf(stdout, "%s el archivo excede los umbrales configurados de complejidad.\n", redLabel("FALLO"))
 		for _, violation := range report.Threshold.Violations {
-			fmt.Printf("  %s actual=%f limit=%f\n", violation.Metric, violation.Actual, violation.Limit)
+			fmt.Fprintf(stdout, "  %s complejidad alta en %s: actual=%f limite=%f\n", redLabel("ALERTA"), violation.Metric, violation.Actual, violation.Limit)
 		}
 	}
 }
@@ -270,28 +302,28 @@ func reportFailed(report halstead.AnalysisReport) bool {
 	return false
 }
 
-func printComparisonSummary(report halstead.AnalysisReport) {
+func printComparisonSummary(stdout io.Writer, report halstead.AnalysisReport) {
 	if report.Comparison == nil {
 		return
 	}
-	fmt.Println()
-	fmt.Println("Comparison")
-	fmt.Println("--------------------------------")
-	fmt.Printf("Baseline report: %s\n", report.Comparison.BaselinePath)
-	fmt.Printf("File delta: volume=%f difficulty=%f effort=%f\n", report.Comparison.File.Delta.VolumeDelta, report.Comparison.File.Delta.DifficultyDelta, report.Comparison.File.Delta.EffortDelta)
+	fmt.Fprintln(stdout)
+	fmt.Fprintln(stdout, "Comparison")
+	fmt.Fprintln(stdout, "--------------------------------")
+	fmt.Fprintf(stdout, "Baseline report: %s\n", report.Comparison.BaselinePath)
+	fmt.Fprintf(stdout, "File delta: volume=%f difficulty=%f effort=%f\n", report.Comparison.File.Delta.VolumeDelta, report.Comparison.File.Delta.DifficultyDelta, report.Comparison.File.Delta.EffortDelta)
 	if report.Comparison.File.Threshold != nil && !report.Comparison.File.Threshold.Passed {
 		for _, violation := range report.Comparison.File.Threshold.Violations {
-			fmt.Printf("  file delta threshold failed: %s delta=%f limit=%f\n", violation.Metric, violation.Delta, violation.Limit)
+			fmt.Fprintf(stdout, "  %s aumento de complejidad del archivo en %s: delta=%f limite=%f\n", redLabel("FALLO"), violation.Metric, violation.Delta, violation.Limit)
 		}
 	}
 	for _, function := range report.Comparison.Functions {
-		fmt.Printf("%s [%s] delta: volume=%f difficulty=%f effort=%f\n", function.Name, function.Kind, function.Delta.VolumeDelta, function.Delta.DifficultyDelta, function.Delta.EffortDelta)
+		fmt.Fprintf(stdout, "%s [%s] delta: volume=%f difficulty=%f effort=%f\n", function.Name, function.Kind, function.Delta.VolumeDelta, function.Delta.DifficultyDelta, function.Delta.EffortDelta)
 		if !function.FoundInBase {
-			fmt.Println("  new function in current report")
+			fmt.Fprintln(stdout, "  new function in current report")
 		}
 		if function.Threshold != nil && !function.Threshold.Passed {
 			for _, violation := range function.Threshold.Violations {
-				fmt.Printf("  function delta threshold failed: %s delta=%f limit=%f\n", violation.Metric, violation.Delta, violation.Limit)
+				fmt.Fprintf(stdout, "  %s aumento de complejidad en la funcion para %s: delta=%f limite=%f\n", redLabel("FALLO"), violation.Metric, violation.Delta, violation.Limit)
 			}
 		}
 	}
@@ -317,4 +349,12 @@ func comparisonFailed(report halstead.AnalysisReport) bool {
 
 func comparisonKey(name, kind string) string {
 	return kind + ":" + name
+}
+
+func redLabel(text string) string {
+	return ansiBold + ansiRed + text + ansiReset
+}
+
+func greenLabel(text string) string {
+	return ansiBold + ansiGreen + text + ansiReset
 }

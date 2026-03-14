@@ -201,6 +201,16 @@ func TestCompareReports(t *testing.T) {
 	}
 }
 
+func TestAnalyzeASTFileForCommandPackage(t *testing.T) {
+	report, err := AnalyzeASTFile("cmd/halstead/halstead.go")
+	if err != nil {
+		t.Fatalf("AnalyzeASTFile returned error: %v", err)
+	}
+	if report.File.TotalOperators == 0 || report.File.TotalOperands == 0 {
+		t.Fatalf("expected non-empty report for command package, got %+v", report.File)
+	}
+}
+
 func TestCompareReportsChangedOnly(t *testing.T) {
 	baseline := AnalysisReport{
 		Functions: []FunctionReport{
