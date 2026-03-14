@@ -104,3 +104,123 @@ func main() {
 		t.Fatalf("expected ast analyzer to produce counts, got %+v", astMetrics)
 	}
 }
+
+func TestAnalyzeASTReportIncludesFunctions(t *testing.T) {
+	src := []byte(`package main
+
+import "fmt"
+
+func helper(v int) int {
+	return v + 1
+}
+
+func main() {
+	fmt.Println(helper(2))
+}
+`)
+
+	report, err := AnalyzeASTReport(src)
+	if err != nil {
+		t.Fatalf("AnalyzeASTReport returned error: %v", err)
+	}
+
+	if report.Analyzer != "go-ast-types" {
+		t.Fatalf("unexpected analyzer: %q", report.Analyzer)
+	}
+	if len(report.Functions) != 2 {
+		t.Fatalf("expected 2 function reports, got %d", len(report.Functions))
+	}
+	if report.Functions[0].Name != "helper" {
+		t.Fatalf("expected first function to be helper, got %q", report.Functions[0].Name)
+	}
+	if report.Functions[1].Name != "main" {
+		t.Fatalf("expected second function to be main, got %q", report.Functions[1].Name)
+	}
+	if report.Functions[0].Metrics.TotalOperators == 0 || report.Functions[1].Metrics.TotalOperands == 0 {
+		t.Fatalf("expected non-empty per-function metrics, got %+v", report.Functions)
+	}
+}
+
+func TestThresholdEvaluation(t *testing.T) {
+	summary := MetricsSummary{
+		Volume:     20,
+		Difficulty: 5,
+		Effort:     100,
+	}
+
+	outcome := summary.Evaluate(Thresholds{
+		MaxVolume:     10,
+		MaxDifficulty: 6,
+		MaxEffort:     50,
+	})
+
+	if outcome == nil {
+		t.Fatalf("expected threshold outcome")
+	}
+	if outcome.Passed {
+		t.Fatalf("expected threshold evaluation to fail")
+	}
+	if len(outcome.Violations) != 2 {
+		t.Fatalf("expected 2 violations, got %d", len(outcome.Violations))
+	}
+}
+
+func TestCompareReports(t *testing.T) {
+	baseline := AnalysisReport{
+		Path: "/tmp/base.json",
+		File: MetricsSummary{Volume: 10, Difficulty: 2, Effort: 20},
+		Functions: []FunctionReport{
+			{Name: "main", Kind: "func_decl", Metrics: MetricsSummary{Volume: 5, Difficulty: 1, Effort: 5}},
+		},
+	}
+	current := AnalysisReport{
+		File: MetricsSummary{Volume: 20, Difficulty: 4, Effort: 50},
+		Functions: []FunctionReport{
+			{Name: "main", Kind: "func_decl", Metrics: MetricsSummary{Volume: 9, Difficulty: 2, Effort: 12}},
+			{Name: "helper", Kind: "func_decl", Metrics: MetricsSummary{Volume: 8, Difficulty: 2, Effort: 16}},
+		},
+	}
+
+	comparison := CompareReports(baseline, current)
+	if comparison.File.Delta.VolumeDelta != 10 {
+		t.Fatalf("expected file volume delta 10, got %f", comparison.File.Delta.VolumeDelta)
+	}
+	if len(comparison.Functions) != 2 {
+		t.Fatalf("expected 2 function comparisons, got %d", len(comparison.Functions))
+	}
+	if comparison.Functions[1].FoundInBase {
+		t.Fatalf("expected helper not to be found in baseline")
+	}
+	if !comparison.Functions[1].IsChanged {
+		t.Fatalf("expected helper to be marked as changed")
+	}
+
+	comparison.Evaluate(DeltaThresholds{MaxVolumeDelta: 6})
+	if comparison.Threshold == nil || comparison.Threshold.Passed {
+		t.Fatalf("expected comparison thresholds to fail")
+	}
+}
+
+func TestCompareReportsChangedOnly(t *testing.T) {
+	baseline := AnalysisReport{
+		Functions: []FunctionReport{
+			{Name: "same", Kind: "func_decl", Metrics: MetricsSummary{Volume: 5, Difficulty: 1, Effort: 5}},
+			{Name: "changed", Kind: "func_decl", Metrics: MetricsSummary{Volume: 5, Difficulty: 1, Effort: 5}},
+		},
+	}
+	current := AnalysisReport{
+		Functions: []FunctionReport{
+			{Name: "same", Kind: "func_decl", Metrics: MetricsSummary{Volume: 5, Difficulty: 1, Effort: 5}},
+			{Name: "changed", Kind: "func_decl", Metrics: MetricsSummary{Volume: 7, Difficulty: 1, Effort: 8}},
+			{Name: "newfn", Kind: "func_decl", Metrics: MetricsSummary{Volume: 3, Difficulty: 1, Effort: 3}},
+		},
+	}
+
+	filtered := CompareReports(baseline, current).ChangedOnly()
+	if len(filtered.Functions) != 2 {
+		t.Fatalf("expected 2 changed functions, got %d", len(filtered.Functions))
+	}
+	if filtered.Functions[0].Name != "changed" || filtered.Functions[1].Name != "newfn" {
+		t.Fatalf("unexpected changed-only functions: %+v", filtered.Functions)
+	}
+}

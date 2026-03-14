@@ -6,15 +6,26 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"strconv"
+	"strings"
 )
 
 // AnalyzeAST parses Go source with the standard library parser and derives metrics
 // from the resulting syntax tree.
 func AnalyzeAST(src []byte) (Metrics, error) {
+	report, err := AnalyzeASTReport(src)
+	if err != nil {
+		return Metrics{}, err
+	}
+	return metricsFromSummary(report.File), nil
+}
+
+// AnalyzeASTReport parses Go source and returns file-level and per-function metrics.
+func AnalyzeASTReport(src []byte) (AnalysisReport, error) {
 	fileSet := token.NewFileSet()
 	file, err := parser.ParseFile(fileSet, "", src, parser.ParseComments)
 	if err != nil {
-		return Metrics{}, err
+		return AnalysisReport{}, err
 	}
 
 	info := &types.Info{
@@ -28,16 +39,37 @@ func AnalyzeAST(src []byte) (Metrics, error) {
 		Importer: importer.Default(),
 	}
 	if _, err := config.Check("halstead", fileSet, []*ast.File{file}, info); err != nil {
-		return Metrics{}, err
+		return AnalysisReport{}, err
 	}
 
+	analyzer := astAnalyzer{
+		fileSet: fileSet,
+		info:    info,
+	}
+	fileMetrics := analyzer.analyzeNode(file)
+
+	report := AnalysisReport{
+		Analyzer:  fileMetrics.Name,
+		File:      fileMetrics.Summary(),
+		Functions: analyzer.functionReports(file),
+	}
+
+	return report, nil
+}
+
+type astAnalyzer struct {
+	fileSet *token.FileSet
+	info    *types.Info
+}
+
+func (a astAnalyzer) analyzeNode(root ast.Node) Metrics {
 	metrics := Metrics{
 		Name:      "go-ast-types",
 		Operators: map[string]int{},
 		Operands:  map[string]int{},
 	}
 
-	ast.Inspect(file, func(n ast.Node) bool {
+	ast.Inspect(root, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *ast.AssignStmt:
 			metrics.addOperator(node.Tok.String(), len(node.Lhs))
@@ -106,7 +138,7 @@ func AnalyzeAST(src []byte) (Metrics, error) {
 			if node.Name == "_" {
 				return true
 			}
-			if object := resolvedObject(info, node); object != nil {
+			if object := resolvedObject(a.info, node); object != nil {
 				if name, ok := operandName(object); ok {
 					metrics.addOperand(name, 1)
 				}
@@ -117,7 +149,93 @@ func AnalyzeAST(src []byte) (Metrics, error) {
 		return true
 	})
 
-	return metrics, nil
+	return metrics
+}
+
+func (a astAnalyzer) functionReports(file *ast.File) []FunctionReport {
+	var reports []FunctionReport
+
+	ast.Inspect(file, func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.FuncDecl:
+			reports = append(reports, a.newFunctionReport(functionDeclName(node), "func_decl", node))
+			return true
+		case *ast.FuncLit:
+			reports = append(reports, a.newFunctionReport(functionLitName(a.fileSet, node), "func_lit", node))
+			return false
+		default:
+			return true
+		}
+	})
+
+	return reports
+}
+
+func (a astAnalyzer) newFunctionReport(name, kind string, node ast.Node) FunctionReport {
+	start := a.fileSet.Position(node.Pos())
+	end := a.fileSet.Position(node.End())
+	metrics := a.analyzeNode(node)
+	return FunctionReport{
+		Name:    name,
+		Kind:    kind,
+		Start:   Position{Line: start.Line, Column: start.Column},
+		End:     Position{Line: end.Line, Column: end.Column},
+		Metrics: metrics.Summary(),
+	}
+}
+
+func functionDeclName(fn *ast.FuncDecl) string {
+	if fn.Recv == nil || len(fn.Recv.List) == 0 {
+		return fn.Name.Name
+	}
+	return receiverName(fn.Recv.List[0].Type) + "." + fn.Name.Name
+}
+
+func functionLitName(fileSet *token.FileSet, fn *ast.FuncLit) string {
+	pos := fileSet.Position(fn.Type.Func)
+	return "func_literal@" + strconv.Itoa(pos.Line) + ":" + strconv.Itoa(pos.Column)
+}
+
+func receiverName(expr ast.Expr) string {
+	switch node := expr.(type) {
+	case *ast.Ident:
+		return node.Name
+	case *ast.StarExpr:
+		return "*" + receiverName(node.X)
+	case *ast.IndexExpr:
+		return receiverName(node.X) + "[" + exprString(node.Index) + "]"
+	case *ast.IndexListExpr:
+		parts := make([]string, 0, len(node.Indices))
+		for _, index := range node.Indices {
+			parts = append(parts, exprString(index))
+		}
+		return receiverName(node.X) + "[" + strings.Join(parts, ",") + "]"
+	default:
+		return exprString(expr)
+	}
+}
+
+func exprString(expr ast.Expr) string {
+	switch node := expr.(type) {
+	case *ast.Ident:
+		return node.Name
+	case *ast.SelectorExpr:
+		return exprString(node.X) + "." + node.Sel.Name
+	case *ast.StarExpr:
+		return "*" + exprString(node.X)
+	default:
+		return "expr"
+	}
+}
+
+func metricsFromSummary(summary MetricsSummary) Metrics {
+	return Metrics{
+		Name:           summary.Name,
+		Operators:      cloneCounts(summary.Operators),
+		Operands:       cloneCounts(summary.Operands),
+		TotalOperators: summary.TotalOperators,
+		TotalOperands:  summary.TotalOperands,
+	}
 }
 
 func (m *Metrics) addOperator(name string, amount int) {
