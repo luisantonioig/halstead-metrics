@@ -58,7 +58,7 @@ const answer = 42
 
 type message string
 
-var greeting message = "hola"
+var greeting message = "hello"
 
 func main() {
 	fmt.Println(greeting, answer)
@@ -92,7 +92,7 @@ func TestAnalyzeASTOnFixture(t *testing.T) {
 import "fmt"
 
 func main() {
-	fmt.Println("Hello, mundo")
+	fmt.Println("Hello, world")
 }`)
 
 	astMetrics, err := AnalyzeAST(src)

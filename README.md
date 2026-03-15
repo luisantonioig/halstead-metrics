@@ -108,6 +108,12 @@ Analyze a Go source file:
 ./halstead testdata/ejem_01.go
 ```
 
+Emit detailed operator and operand counts:
+
+```bash
+./halstead --verbose testdata/ejem_01.go
+```
+
 Emit machine-readable JSON:
 
 ```bash
@@ -144,12 +150,10 @@ Fail when complexity growth exceeds a configured delta budget:
 ./halstead --baseline-report baseline.json --max-volume-delta 15 testdata/ejem_15.go
 ```
 
-The output includes:
+Default terminal output includes:
 
-- operators found
-- operands found
 - semantically classified operands
-- per-function summaries with line/column locations
+- a compact function summary
 - number of distinct operators and operands
 - program length
 - volume
@@ -157,6 +161,12 @@ The output includes:
 - effort
 - estimated time to program
 - estimated delivered bugs
+
+With `--verbose`, the CLI also includes:
+
+- operators found
+- operands found
+- per-function summaries with line/column locations
 
 ## Quick Start
 
