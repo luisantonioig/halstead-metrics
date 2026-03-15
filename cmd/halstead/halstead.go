@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	halstead "github.com/luisantonioig/halstead-metrics"
@@ -105,7 +106,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		}
 		return 0
 	}
-	printMetrics(stdout, halstead.Metrics{
+	printReportOverview(stdout, path, halstead.Metrics{
 		Name:           report.File.Name,
 		Operators:      report.File.Operators,
 		Operands:       report.File.Operands,
@@ -126,26 +127,24 @@ func printError(stderr io.Writer, err error) int {
 	return 1
 }
 
-func printMetrics(stdout io.Writer, metrics halstead.Metrics, verbose bool) {
-	fmt.Fprintf(stdout, "Analyzer: %s\n", metrics.Name)
-	fmt.Fprintf(stdout, "There are %d distinct operators\n", metrics.DifferentOperators())
-	fmt.Fprintf(stdout, "There are %d distinct operands\n", metrics.DifferentOperands())
-	fmt.Fprintf(stdout, "The code has %d operands and %d operators\n", metrics.TotalOperands, metrics.TotalOperators)
-	fmt.Fprintf(stdout, "The calculated program length is %f and the volume is %f\n", metrics.CalculatedProgramLength(), metrics.Volume())
-	fmt.Fprintf(stdout, "The program difficulty is %f\n", metrics.Difficulty())
-	fmt.Fprintf(stdout, "The program effort is %f\n", metrics.Effort())
-	fmt.Fprintf(stdout, "The estimated programming time is %f\n", metrics.TimeRequiredToProgram())
-	fmt.Fprintf(stdout, "The estimated number of bugs is %f\n", metrics.NumberOfDeliveredBugs())
+func printReportOverview(stdout io.Writer, path string, metrics halstead.Metrics, verbose bool) {
+	printSection(stdout, "Analysis Summary")
+	printKeyValue(stdout, "Path", path)
+	printKeyValue(stdout, "Analyzer", metrics.Name)
+	printKeyValue(stdout, "Vocabulary", fmt.Sprintf("%d operators, %d operands", metrics.DifferentOperators(), metrics.DifferentOperands()))
+	printKeyValue(stdout, "Length", fmt.Sprintf("%d operators, %d operands", metrics.TotalOperators, metrics.TotalOperands))
+	printKeyValue(stdout, "Calculated length", formatFloat(metrics.CalculatedProgramLength()))
+	printKeyValue(stdout, "Volume", formatFloat(metrics.Volume()))
+	printKeyValue(stdout, "Difficulty", formatFloat(metrics.Difficulty()))
+	printKeyValue(stdout, "Effort", formatFloat(metrics.Effort()))
+	printKeyValue(stdout, "Estimated time", formatFloat(metrics.TimeRequiredToProgram()))
+	printKeyValue(stdout, "Estimated bugs", formatFloat(metrics.NumberOfDeliveredBugs()))
 	if !verbose {
 		return
 	}
-	fmt.Fprintln(stdout)
-	fmt.Fprintln(stdout, "Operators")
-	fmt.Fprintln(stdout, "--------------------------------")
+	printSection(stdout, "Operators")
 	printCounts(stdout, metrics.Operators)
-	fmt.Fprintln(stdout)
-	fmt.Fprintln(stdout, "Operands")
-	fmt.Fprintln(stdout, "--------------------------------")
+	printSection(stdout, "Operands")
 	printCounts(stdout, metrics.Operands)
 }
 
@@ -157,9 +156,7 @@ func printFunctions(stdout io.Writer, functions []halstead.FunctionReport, verbo
 		printFunctionSummary(stdout, functions)
 		return
 	}
-	fmt.Fprintln(stdout)
-	fmt.Fprintln(stdout, "Functions")
-	fmt.Fprintln(stdout, "--------------------------------")
+	printSection(stdout, "Functions")
 	for _, function := range functions {
 		fmt.Fprintf(stdout, "%s [%s] %d:%d-%d:%d\n", function.Name, function.Kind, function.Start.Line, function.Start.Column, function.End.Line, function.End.Column)
 		fmt.Fprintf(stdout, "  volume=%f difficulty=%f effort=%f\n", function.Metrics.Volume, function.Metrics.Difficulty, function.Metrics.Effort)
@@ -172,10 +169,8 @@ func printFunctions(stdout io.Writer, functions []halstead.FunctionReport, verbo
 }
 
 func printFunctionSummary(stdout io.Writer, functions []halstead.FunctionReport) {
-	fmt.Fprintln(stdout)
-	fmt.Fprintln(stdout, "Functions")
-	fmt.Fprintln(stdout, "--------------------------------")
-	fmt.Fprintf(stdout, "Found %d functions.\n", len(functions))
+	printSection(stdout, "Functions")
+	printKeyValue(stdout, "Count", strconv.Itoa(len(functions)))
 
 	flagged := 0
 	for _, function := range functions {
@@ -183,12 +178,22 @@ func printFunctionSummary(stdout io.Writer, functions []halstead.FunctionReport)
 			flagged++
 		}
 	}
+	if highestVolume, ok := maxFunctionBy(functions, func(function halstead.FunctionReport) float64 {
+		return function.Metrics.Volume
+	}); ok {
+		printKeyValue(stdout, "Highest volume", fmt.Sprintf("%s (%s)", highestVolume.Name, formatFloat(highestVolume.Metrics.Volume)))
+	}
+	if highestDifficulty, ok := maxFunctionBy(functions, func(function halstead.FunctionReport) float64 {
+		return function.Metrics.Difficulty
+	}); ok {
+		printKeyValue(stdout, "Highest difficulty", fmt.Sprintf("%s (%s)", highestDifficulty.Name, formatFloat(highestDifficulty.Metrics.Difficulty)))
+	}
 	if flagged == 0 {
-		fmt.Fprintln(stdout, "No function exceeded the configured thresholds.")
+		printKeyValue(stdout, "Status", greenLabel("OK")+" no function exceeded the configured thresholds")
 		return
 	}
 
-	fmt.Fprintf(stdout, "%s %d function(s) exceeded the configured thresholds.\n", redLabel("FAILED"), flagged)
+	printKeyValue(stdout, "Status", fmt.Sprintf("%s %d function(s) exceeded the configured thresholds", redLabel("FAILED"), flagged))
 }
 
 func printJSON(stdout io.Writer, report halstead.AnalysisReport) error {
@@ -287,7 +292,7 @@ func printCounts(stdout io.Writer, values map[string]int) {
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		fmt.Fprintln(stdout, "Key:", key, "Value:", values[key])
+		fmt.Fprintf(stdout, "  %-32s %d\n", key, values[key])
 	}
 }
 
@@ -305,15 +310,13 @@ func printThresholdSummary(stdout io.Writer, report halstead.AnalysisReport) {
 	if report.Threshold == nil {
 		return
 	}
-	fmt.Fprintln(stdout)
-	fmt.Fprintln(stdout, "Thresholds")
-	fmt.Fprintln(stdout, "--------------------------------")
+	printSection(stdout, "Thresholds")
 	if report.Threshold.Passed {
-		fmt.Fprintf(stdout, "%s file metrics are within the configured limits.\n", greenLabel("OK"))
+		printKeyValue(stdout, "Status", greenLabel("OK")+" file metrics are within the configured limits")
 	} else {
-		fmt.Fprintf(stdout, "%s the file exceeds the configured complexity thresholds.\n", redLabel("FAILED"))
+		printKeyValue(stdout, "Status", redLabel("FAILED")+" the file exceeds the configured complexity thresholds")
 		for _, violation := range report.Threshold.Violations {
-			fmt.Fprintf(stdout, "  %s high complexity for %s: actual=%f limit=%f\n", redLabel("ALERT"), violation.Metric, violation.Actual, violation.Limit)
+			printKeyValue(stdout, titleCase(violation.Metric), fmt.Sprintf("%s actual %s, limit %s", redLabel("ALERT"), formatFloat(violation.Actual), formatFloat(violation.Limit)))
 		}
 	}
 }
@@ -334,14 +337,16 @@ func printComparisonSummary(stdout io.Writer, report halstead.AnalysisReport, ve
 	if report.Comparison == nil {
 		return
 	}
-	fmt.Fprintln(stdout)
-	fmt.Fprintln(stdout, "Comparison")
-	fmt.Fprintln(stdout, "--------------------------------")
-	fmt.Fprintf(stdout, "Baseline report: %s\n", report.Comparison.BaselinePath)
-	fmt.Fprintf(stdout, "File delta: volume=%f difficulty=%f effort=%f\n", report.Comparison.File.Delta.VolumeDelta, report.Comparison.File.Delta.DifficultyDelta, report.Comparison.File.Delta.EffortDelta)
+	printSection(stdout, "Comparison")
+	printKeyValue(stdout, "Baseline", report.Comparison.BaselinePath)
+	printKeyValue(stdout, "File delta", fmt.Sprintf("volume %s, difficulty %s, effort %s",
+		formatFloat(report.Comparison.File.Delta.VolumeDelta),
+		formatFloat(report.Comparison.File.Delta.DifficultyDelta),
+		formatFloat(report.Comparison.File.Delta.EffortDelta),
+	))
 	if report.Comparison.File.Threshold != nil && !report.Comparison.File.Threshold.Passed {
 		for _, violation := range report.Comparison.File.Threshold.Violations {
-			fmt.Fprintf(stdout, "  %s file complexity increase for %s: delta=%f limit=%f\n", redLabel("FAILED"), violation.Metric, violation.Delta, violation.Limit)
+			printKeyValue(stdout, titleCase(violation.Metric), fmt.Sprintf("%s delta %s, limit %s", redLabel("FAILED"), formatFloat(violation.Delta), formatFloat(violation.Limit)))
 		}
 	}
 	if !verbose {
@@ -349,13 +354,19 @@ func printComparisonSummary(stdout io.Writer, report halstead.AnalysisReport, ve
 		return
 	}
 	for _, function := range report.Comparison.Functions {
-		fmt.Fprintf(stdout, "%s [%s] delta: volume=%f difficulty=%f effort=%f\n", function.Name, function.Kind, function.Delta.VolumeDelta, function.Delta.DifficultyDelta, function.Delta.EffortDelta)
+		fmt.Fprintf(stdout, "%s [%s]  volume=%s  difficulty=%s  effort=%s\n",
+			function.Name,
+			function.Kind,
+			formatFloat(function.Delta.VolumeDelta),
+			formatFloat(function.Delta.DifficultyDelta),
+			formatFloat(function.Delta.EffortDelta),
+		)
 		if !function.FoundInBase {
-			fmt.Fprintln(stdout, "  new function in current report")
+			fmt.Fprintln(stdout, "  new in current report")
 		}
 		if function.Threshold != nil && !function.Threshold.Passed {
 			for _, violation := range function.Threshold.Violations {
-				fmt.Fprintf(stdout, "  %s function complexity increase for %s: delta=%f limit=%f\n", redLabel("FAILED"), violation.Metric, violation.Delta, violation.Limit)
+				fmt.Fprintf(stdout, "  %s %s delta %s (limit %s)\n", redLabel("FAILED"), violation.Metric, formatFloat(violation.Delta), formatFloat(violation.Limit))
 			}
 		}
 	}
@@ -363,7 +374,7 @@ func printComparisonSummary(stdout io.Writer, report halstead.AnalysisReport, ve
 
 func printComparisonFunctionSummary(stdout io.Writer, functions []halstead.FunctionComparison) {
 	if len(functions) == 0 {
-		fmt.Fprintln(stdout, "No changed functions in comparison.")
+		printKeyValue(stdout, "Functions", "no changed functions in comparison")
 		return
 	}
 
@@ -378,12 +389,12 @@ func printComparisonFunctionSummary(stdout io.Writer, functions []halstead.Funct
 		}
 	}
 
-	fmt.Fprintf(stdout, "Compared %d function(s); %d changed or new.\n", len(functions), changed)
+	printKeyValue(stdout, "Functions", fmt.Sprintf("%d compared, %d changed or new", len(functions), changed))
 	if flagged == 0 {
-		fmt.Fprintln(stdout, "No function delta exceeded the configured thresholds.")
+		printKeyValue(stdout, "Status", greenLabel("OK")+" no function delta exceeded the configured thresholds")
 		return
 	}
-	fmt.Fprintf(stdout, "%s %d function delta(s) exceeded the configured thresholds.\n", redLabel("FAILED"), flagged)
+	printKeyValue(stdout, "Status", fmt.Sprintf("%s %d function delta(s) exceeded the configured thresholds", redLabel("FAILED"), flagged))
 }
 
 func comparisonFailed(report halstead.AnalysisReport) bool {
@@ -414,4 +425,41 @@ func redLabel(text string) string {
 
 func greenLabel(text string) string {
 	return ansiBold + ansiGreen + text + ansiReset
+}
+
+func printSection(stdout io.Writer, title string) {
+	fmt.Fprintln(stdout)
+	fmt.Fprintln(stdout, title)
+	fmt.Fprintln(stdout, strings.Repeat("=", len(title)))
+}
+
+func printKeyValue(stdout io.Writer, key, value string) {
+	fmt.Fprintf(stdout, "%-18s %s\n", key+":", value)
+}
+
+func formatFloat(value float64) string {
+	return fmt.Sprintf("%.2f", value)
+}
+
+func titleCase(value string) string {
+	if value == "" {
+		return value
+	}
+	return strings.ToUpper(value[:1]) + value[1:]
+}
+
+func maxFunctionBy(functions []halstead.FunctionReport, score func(halstead.FunctionReport) float64) (halstead.FunctionReport, bool) {
+	if len(functions) == 0 {
+		return halstead.FunctionReport{}, false
+	}
+	best := functions[0]
+	bestScore := score(best)
+	for _, function := range functions[1:] {
+		currentScore := score(function)
+		if currentScore > bestScore {
+			best = function
+			bestScore = currentScore
+		}
+	}
+	return best, true
 }
